@@ -11,8 +11,8 @@ object AppModule {
             context,
             AppDatabase::class.java,
             "money_tracker_db"
-        ).build()
+        ).fallbackToDestructiveMigration().build()
 
-        return TransactionRepository(db.transactionDao())
+        return TransactionRepository(db.transactionDao(), db.pocketDao())
     }
 }
