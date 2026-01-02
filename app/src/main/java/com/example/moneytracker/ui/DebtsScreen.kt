@@ -13,7 +13,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DebtsScreen(vm: TransactionViewModel, onBack: () -> Unit) {
-    val debts by vm.debtsByPerson.collectAsState()
+    val debts by vm.debtsUi.collectAsState()
 
     Scaffold(
         topBar = {
@@ -30,17 +30,14 @@ fun DebtsScreen(vm: TransactionViewModel, onBack: () -> Unit) {
                 Text("No hay deudas registradas.")
             } else {
                 LazyColumn {
-                    items(debts) { row ->
-                        Card(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-                            Column(Modifier.padding(12.dp)) {
-                                Text(row.person, style = MaterialTheme.typography.titleMedium)
-                                Text("Balance: ${formatCOP(row.balanceCents)}")
-                                Text(
-                                    if (row.balanceCents > 0) "Te debe" else "Tú le debes",
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                            }
+                    items(debts) { personDebt ->
+                        Text(personDebt.person)
+
+                        personDebt.byPocket.forEach { pocket ->
+                            Text("${pocket.pocketName}: ${formatCOP(pocket.amountCents)}")
                         }
+
+                        Text("Total: ${formatCOP(personDebt.totalCents)}")
                     }
                 }
             }

@@ -20,11 +20,29 @@ data class Summary(
     val incomeCents: Long,
     val expenseCents: Long
 )
+
+data class PocketDebtUi(val pocketName: String, val amountCents: Long)
+data class PersonDebtUi(val person: String, val byPocket: List<PocketDebtUi>, val totalCents: Long)
 class TransactionViewModel(private val repo: TransactionRepository) : ViewModel() {
 
+    val debtsUi: StateFlow<List<PersonDebtUi>> =
+        repo.getDebtsByPersonAndPocket()
+            .map { rows ->
+                rows.groupBy { it.person }
+                    .map { (person, items) ->
+                        val byPocket = items.map {
+                            PocketDebtUi(it.pocketName, it.debtCents)
+                        }
+                        val total = items.sumOf { it.debtCents }
+                        PersonDebtUi(person, byPocket, total)
+                    }
+            }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val transactions: StateFlow<List<TransactionEntity>> =
         repo.getAll().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    val pockets = repo.getPockets()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val transactionsWithBalance =
         transactions.map { list ->
             var runningBalance = 0L
@@ -71,10 +89,17 @@ class TransactionViewModel(private val repo: TransactionRepository) : ViewModel(
             SharingStarted.WhileSubscribed(5_000),
             Summary(0, 0, 0)
         )
-    fun addTransaction(type: TransactionType, amountCents: Long, description: String, person: String?) {
+    fun addTransaction(
+        pocketId: Long,
+        type: TransactionType,
+        amountCents: Long,
+        description: String,
+        person: String?
+    ) {
         viewModelScope.launch {
             repo.add(
                 TransactionEntity(
+                    pocketId = pocketId,
                     type = type,
                     amountCents = amountCents,
                     description = description.trim(),
@@ -88,4 +113,48 @@ class TransactionViewModel(private val repo: TransactionRepository) : ViewModel(
                 repo.update(tx)
             }
         }
+
+    fun transactionsWithBalanceByPocket(pocketId: Long) =
+        repo.getByPocket(pocketId)
+            .map { list ->
+                var running = 0L
+                list.sortedBy { it.createdAt }
+                    .map { tx ->
+                        running += when (tx.type) {
+                            TransactionType.RECEIVED, TransactionType.PAID_ME -> tx.amountCents
+                            TransactionType.SPENT, TransactionType.LENT -> -tx.amountCents
+                        }
+                        TransactionWithBalance(tx, running)
+                    }
+                    .reversed()
+            }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun pocketSummary(pocketId: Long) =
+        repo.getPocketSummary(pocketId)
+            .map { row ->
+                val income = row.incomeCents ?: 0L
+                val expense = row.expenseCents ?: 0L
+                Summary(
+                    balanceCents = income - expense,
+                    incomeCents = income,
+                    expenseCents = expense
+                )
+            }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), Summary(0,0,0))
+
+    fun createPocket(name: String) {
+        viewModelScope.launch {
+            if (name.trim().isNotBlank()) repo.createPocket(name)
+        }
+    }
+
+    init {
+        viewModelScope.launch {
+            if (repo.pocketsCount() == 0) {
+                repo.createPocket("Comida")
+                repo.createPocket("Pasajes")
+            }
+        }
+    }
     }

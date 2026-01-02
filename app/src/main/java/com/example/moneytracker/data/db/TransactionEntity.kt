@@ -7,6 +7,7 @@ import com.example.moneytracker.data.model.TransactionType
 @Entity(tableName = "transactions")
 data class TransactionEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val pocketId: Long = 1L,
     val type: TransactionType,
     val amountCents: Long,
     val description: String,
