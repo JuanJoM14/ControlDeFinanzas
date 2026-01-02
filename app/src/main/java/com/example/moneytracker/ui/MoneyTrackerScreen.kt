@@ -20,18 +20,41 @@ import com.example.moneytracker.data.db.TransactionEntity
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MoneyTrackerScreen(vm: TransactionViewModel) {
-    val list by vm.transactionsWithBalance.collectAsState(initial = emptyList())
-
-    val summary by vm.summary.collectAsState()
     var showDebts by remember { mutableStateOf(false) }
 
     var showDialog by remember { mutableStateOf(false) }
 
     var editingTx by remember { mutableStateOf<TransactionEntity?>(null) }
 
+    var showPockets by remember { mutableStateOf(false) }
+    var selectedPocketId by remember { mutableStateOf<Long?>(null) }
+
+    val pockets by vm.pockets.collectAsState()
+
+    val pocketId = selectedPocketId ?: return
+    val list by vm.transactionsWithBalanceByPocket(pocketId).collectAsState()
+    val summary by vm.pocketSummary(pocketId).collectAsState()
+
+    LaunchedEffect(pockets) {
+        if (selectedPocketId == null && pockets.isNotEmpty()) {
+            selectedPocketId = pockets.first().id
+        }
+    }
 
     if (showDebts) {
         DebtsScreen(vm = vm, onBack = { showDebts = false })
+        return
+    }
+
+    if (showPockets) {
+        PocketsScreen(
+            vm = vm,
+            onSelect = { id ->
+                selectedPocketId = id
+                showPockets = false
+            },
+            onBack = { showPockets = false }
+        )
         return
     }
 
@@ -41,6 +64,7 @@ fun MoneyTrackerScreen(vm: TransactionViewModel) {
                 title = { Text("Control de dinero") },
                 actions = {
                     TextButton(onClick = { showDebts = true }) { Text("Deudas") }
+                    TextButton(onClick = { showPockets = true }) { Text("Bolsillos") }
                 }
             )
         },        floatingActionButton = {
@@ -125,7 +149,14 @@ fun MoneyTrackerScreen(vm: TransactionViewModel) {
             AddTransactionDialog(
                 onDismiss = { showDialog = false },
                 onSave = { type, amountCents, desc, person ->
-                    vm.addTransaction(type, amountCents, desc, person)
+                    val pocketId = selectedPocketId ?: return@AddTransactionDialog
+                    vm.addTransaction(
+                        pocketId = pocketId,
+                        type = type,
+                        amountCents = amountCents,
+                        description = desc,
+                        person = person
+                    )
                     showDialog = false
                 }
             )
