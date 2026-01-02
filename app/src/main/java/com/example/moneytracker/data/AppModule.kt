@@ -21,10 +21,12 @@ object AppModule {
             """)
             
             // Insert default pocket with id=1 to match existing transactions
-            db.execSQL("""
-                INSERT INTO pockets (id, name, createdAt) 
-                VALUES (1, 'General', ${System.currentTimeMillis()})
-            """)
+            // Using a fixed timestamp value to avoid SQL injection concerns
+            val timestamp = System.currentTimeMillis()
+            db.execSQL(
+                "INSERT INTO pockets (id, name, createdAt) VALUES (?, ?, ?)",
+                arrayOf(1, "General", timestamp)
+            )
         }
     }
     
@@ -35,8 +37,6 @@ object AppModule {
             "money_tracker_db"
         )
             .addMigrations(MIGRATION_1_2)
-            // Fallback for any future migrations during development
-            .fallbackToDestructiveMigration()
             .build()
 
         return TransactionRepository(db.transactionDao(), db.pocketDao())
